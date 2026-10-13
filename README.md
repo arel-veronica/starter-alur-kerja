@@ -4,7 +4,7 @@ Template proyek untuk membangun aplikasi bersama **Claude Code** dengan alur yan
 setiap perubahan datang sebagai **Pull Request**, kamu **uji dulu di server** dengan satu perintah,
 baru di-**merge**. Kalau ada yang salah, server bisa kembali ke versi lama, dan data sudah di-backup otomatis.
 
-Di dalamnya ada **bot Telegram contoh** (`/ping`, `/versi`) supaya kamu bisa mencoba seluruh alur dari awal
+Di dalamnya ada **bot Telegram contoh** (`/halo`, `/ping`, `/versi`) supaya kamu bisa mencoba seluruh alur dari awal
 sampai akhir sebelum membangun proyekmu sendiri.
 
 ```
@@ -81,8 +81,8 @@ mkdir -p data && sudo chown -R 1000:1000 data   # container berjalan sebagai use
 3. Sejak saat ini bot **hanya** melayani kamu. Coba `/ping` dan `/versi`.
 
 ### 6. Coba alurnya
-Minta Claude Code membuat perubahan kecil, misalnya *"tambahkan perintah /halo yang membalas sapaan"*.
-Lalu ikuti [ALUR-KERJA.md](ALUR-KERJA.md) dari langkah 2. Begitu `/halo` muncul di bot setelah merge,
+Minta Claude Code membuat perubahan kecil, misalnya *"tambahkan perintah /jam yang membalas jam dan tanggal sekarang"*.
+Lalu ikuti [ALUR-KERJA.md](ALUR-KERJA.md) dari langkah 2. Begitu `/jam` muncul di bot setelah merge,
 kamu sudah menguasai seluruh alurnya 🎉
 
 ---

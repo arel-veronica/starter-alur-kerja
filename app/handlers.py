@@ -10,6 +10,7 @@ Untuk menambah perintah baru:
 from __future__ import annotations
 
 import logging
+from datetime import datetime
 from functools import wraps
 from html import escape
 
@@ -22,6 +23,7 @@ from . import statistik
 log = logging.getLogger(__name__)
 
 DAFTAR_PERINTAH = [
+    BotCommand("halo", "Sapaan sesuai waktu"),
     BotCommand("ping", "Cek bot hidup"),
     BotCommand("versi", "Versi kode yang sedang berjalan"),
     BotCommand("help", "Bantuan"),
@@ -29,6 +31,7 @@ DAFTAR_PERINTAH = [
 
 BANTUAN = (
     "🤖 <b>Bot contoh</b>\n\n"
+    "/halo — sapaan sesuai waktu (pagi/siang/sore/malam)\n"
     "/ping — cek bot hidup (dan hitung berapa kali sudah di-ping)\n"
     "/versi — versi kode yang sedang berjalan di server\n"
     "/help — pesan ini"
@@ -85,6 +88,27 @@ async def cmd_ping(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     await _balas(update, f"🏓 pong! (ping ke-{n})")
 
 
+def sapaan(jam: int, nama: str | None) -> str:
+    """Sapaan sesuai jam (0–23, waktu server). Nama boleh kosong."""
+    if 4 <= jam <= 10:
+        waktu, emoji = "pagi", "🌅"
+    elif 11 <= jam <= 14:
+        waktu, emoji = "siang", "☀️"
+    elif 15 <= jam <= 17:
+        waktu, emoji = "sore", "🌇"
+    else:
+        waktu, emoji = "malam", "🌙"
+    kepada = f", {escape(nama.strip())}" if nama and nama.strip() else ""
+    return f"{emoji} Selamat {waktu}{kepada}!"
+
+
+@hanya_pemilik
+async def cmd_halo(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+    # Jam mengikuti zona waktu container (TZ=Asia/Jakarta di docker-compose.yml).
+    user = update.effective_user
+    await _balas(update, sapaan(datetime.now().hour, user.first_name if user else None))
+
+
 def teks_versi(commit: str, branch: str) -> str:
     if branch.startswith("pr-"):
         status = f"🧪 sedang <b>menguji PR #{escape(branch[3:])}</b>. Selesai menguji → <code>./rilis</code> → kembali ke main"
@@ -104,5 +128,6 @@ async def cmd_versi(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
 def register_handlers(app: Application) -> None:
     app.add_handler(CommandHandler("start", cmd_start))
     app.add_handler(CommandHandler("help", cmd_help))
+    app.add_handler(CommandHandler("halo", cmd_halo))
     app.add_handler(CommandHandler("ping", cmd_ping))
     app.add_handler(CommandHandler("versi", cmd_versi))
