@@ -1,0 +1,101 @@
+#!/usr/bin/env bash
+# 🚀 Menu rilis — satu pintu untuk semua urusan server.
+#
+#   ./rilis              menu interaktif
+#   ./rilis status       server sedang menjalankan apa?
+#   ./rilis uji <N>      uji PR #N            (= scripts/uji-pr <N>)
+#   ./rilis main         kembali ke main      (= scripts/balik-main)
+#   ./rilis log          50 baris log terakhir
+#   ./rilis backup       daftar backup
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=scripts/_common.sh
+source "$ROOT/scripts/_common.sh"
+cd "$ROOT"
+
+status() {
+  local branch commit n
+  branch="$(git branch --show-current 2>/dev/null || true)"
+  commit="$(git log -1 --format='%h %s (%cr)')"
+  printf '\n📍 Server sekarang menjalankan:\n'
+  if [[ "$branch" == pr-* ]]; then
+    n="${branch#pr-}"
+    git fetch --quiet origin main 2>/dev/null || info "(GitHub tidak terjangkau; status merge mungkin usang)"
+    if git merge-base --is-ancestor "$branch" origin/main 2>/dev/null; then
+      info "🧪 PR #$n — sudah di-merge ke main. Saatnya: kembali ke main."
+    else
+      info "🧪 PR #$n — BELUM di-merge. Lanjut menguji, atau kembali ke main kalau sudah selesai."
+    fi
+  elif [[ "$branch" == main ]]; then
+    git fetch --quiet origin main 2>/dev/null || true
+    if [[ "$(git rev-parse HEAD)" == "$(git rev-parse origin/main 2>/dev/null || echo x)" ]]; then
+      info "✅ main (produksi), sudah versi terbaru."
+    else
+      info "✅ main (produksi), tapi ada versi lebih baru di GitHub. Pilih: kembali ke main."
+    fi
+  else
+    info "❔ ${branch:-(detached)} — bukan dari alur rilis. Pilih: kembali ke main."
+  fi
+  info "Commit: $commit"
+  if docker compose ps --status running --services 2>/dev/null | grep -qx "$SERVICE"; then
+    info "Container: 🟢 berjalan"
+  else
+    info "Container: 🔴 tidak berjalan — cek log, atau jalankan ulang lewat 'kembali ke main'."
+  fi
+}
+
+log_terakhir() {
+  docker compose logs --no-color --tail 50 "$SERVICE" 2>&1 | samarkan
+}
+
+daftar_backup() {
+  if [[ -d backups ]] && compgen -G "backups/*" >/dev/null; then
+    printf '\n🗄  Backup (terbaru di bawah):\n'
+    find backups -mindepth 1 -maxdepth 1 -type d -printf '%f\n' | sort | tail -n 10 | sed 's/^/    /'
+    info "Cara memulihkan: lihat ALUR-KERJA.md → Memulihkan backup."
+  else
+    info "Belum ada backup."
+  fi
+}
+
+minta_nomor() {
+  local n
+  read -r -p "Nomor PR yang mau diuji: " n
+  [[ "$n" =~ ^[1-9][0-9]*$ ]] || gagal "Nomor PR harus angka, misalnya 7."
+  exec "$ROOT/scripts/uji-pr" "$n"
+}
+
+menu() {
+  status
+  printf '\nMau apa?\n'
+  printf '  1) 🧪 Uji sebuah PR\n'
+  printf '  2) ↩️  Kembali ke main (setelah menguji atau setelah merge)\n'
+  printf '  3) 📜 Lihat log terakhir\n'
+  printf '  4) 🗄  Lihat daftar backup\n'
+  printf '  0) Keluar\n'
+  local pilih
+  read -r -p "Pilih [0-4]: " pilih
+  case "$pilih" in
+    1) minta_nomor ;;
+    2) exec "$ROOT/scripts/balik-main" ;;
+    3) log_terakhir ;;
+    4) daftar_backup ;;
+    0 | "") exit 0 ;;
+    *) gagal "Pilihan tidak dikenal: $pilih" ;;
+  esac
+}
+
+case "${1:-}" in
+  "") menu ;;
+  status) status ;;
+  uji)
+    [[ $# -eq 2 ]] || gagal "Pemakaian: ./rilis uji <nomor-PR>"
+    exec "$ROOT/scripts/uji-pr" "$2"
+    ;;
+  main) shift; exec "$ROOT/scripts/balik-main" "$@" ;;
+  log) log_terakhir ;;
+  backup) daftar_backup ;;
+  -h | --help | bantuan) sed -n '2,9p' "$0" | sed 's/^# \{0,1\}//' ;;
+  *) gagal "Perintah tidak dikenal: $1   (lihat: ./rilis bantuan)" ;;
+esac

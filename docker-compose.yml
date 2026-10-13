@@ -1,0 +1,23 @@
+services:
+  bot:
+    build:
+      context: .
+      args:
+        GIT_COMMIT: ${GIT_COMMIT:-dev}
+        GIT_BRANCH: ${GIT_BRANCH:-lokal}
+    # Nama tetap ini SENGAJA: Docker menolak membuat container kedua dengan nama yang sama,
+    # jadi tidak mungkin ada dua bot berjalan bersamaan. Ganti nama ini untuk setiap proyek baru.
+    container_name: bot-contoh
+    restart: unless-stopped
+    # Jalan sebagai user biasa, bukan root.
+    user: "${UID:-1000}:${GID:-1000}"
+    env_file: .env
+    environment:
+      - TZ=Asia/Jakarta
+    volumes:
+      - ./data:/app/data   # data bot (ikut di-backup sebelum menguji PR)
+    logging:
+      driver: json-file
+      options:
+        max-size: "5m"
+        max-file: "3"

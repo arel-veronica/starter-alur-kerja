@@ -1,0 +1,56 @@
+#!/usr/bin/env bash
+# Kembalikan server ke main terbaru (setelah uji PR atau setelah merge), lalu restart.
+#
+# Pemakaian: scripts/balik-main [--ya]      (atau lewat menu: ./rilis)
+#
+# Pengaman: bila ada salinan PR yang pernah diuji di server (branch pr-<N>) tetapi commit-nya belum
+# masuk main, skrip menampilkan peringatan dan minta konfirmasi dulu. --ya melewati pertanyaan
+# (untuk pemakaian tanpa terminal interaktif); tanpa terminal dan tanpa --ya, skrip berhenti.
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/_common.sh
+source "$ROOT/scripts/_common.sh"
+cd "$ROOT"
+
+YA=0
+if [[ $# -eq 1 && "$1" == "--ya" ]]; then
+  YA=1
+elif [[ $# -ne 0 ]]; then
+  gagal "Pemakaian: scripts/balik-main [--ya]"
+fi
+
+kunci
+
+langkah "Cek prasyarat"
+cek_prasyarat
+cek_bersih
+ASAL_BRANCH="$(git branch --show-current)"
+info "Sebelumnya: ${ASAL_BRANCH:-(detached)} @ $(git log -1 --format='%h %s')"
+
+langkah "Cek salinan PR yang belum di-merge"
+git fetch --quiet origin main
+cek_pr_belum_merge "$ASAL_BRANCH" "$YA"
+
+langkah "Pindah ke main"
+git switch main
+
+langkah "Tarik main terbaru (fast-forward saja)"
+git pull --ff-only origin main
+siapkan_versi
+
+trap 'printf "\n✖ Gagal menjalankan main. Periksa pesan di atas; backup pra-uji ada di folder backups/.\n" >&2' ERR
+
+langkah "Jalankan main"
+tandai_mulai
+docker compose up -d --build "$SERVICE"
+trap - ERR
+
+tampilkan_aktif
+lihat_log 10
+
+printf '\n✔ Produksi kembali ke main.\n'
+if [[ "$ASAL_BRANCH" == pr-* ]]; then
+  info "Salinan lokal $ASAL_BRANCH tidak dihapus (aman dibiarkan)."
+  info "Kalau PR tadi mengubah format data dan main bermasalah, pulihkan backup: lihat ALUR-KERJA.md → Memulihkan backup."
+fi
