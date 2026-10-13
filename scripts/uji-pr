@@ -1,0 +1,67 @@
+#!/usr/bin/env bash
+# Uji sebuah Pull Request di server dengan pola "ganti di tempat":
+# versi produksi dihentikan, data di-backup, lalu PR dijalankan sebagai satu-satunya instance.
+#
+# Pemakaian:  scripts/uji-pr <nomor-PR>      (atau lewat menu: ./rilis)
+# Kembali  :  scripts/balik-main
+set -euo pipefail
+
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
+# shellcheck source=scripts/_common.sh
+source "$ROOT/scripts/_common.sh"
+cd "$ROOT"
+
+if [[ $# -ne 1 || ! "$1" =~ ^[1-9][0-9]*$ ]]; then
+  gagal "Pemakaian: scripts/uji-pr <nomor-PR>   (contoh: scripts/uji-pr 3)"
+fi
+N="$1"
+PR_BRANCH="pr-$N"
+
+kunci
+
+langkah "Cek prasyarat"
+cek_prasyarat
+cek_bersih
+ASAL_BRANCH="$(git branch --show-current)"
+ASAL_COMMIT="$(git log -1 --format='%h %s')"
+info "Sebelumnya: ${ASAL_BRANCH:-(detached)} @ $ASAL_COMMIT"
+
+langkah "Ambil PR #$N dari GitHub"
+if [[ "$ASAL_BRANCH" == "$PR_BRANCH" ]]; then
+  # Git menolak memperbarui branch yang sedang dipakai; pindah dulu (aman, tree bersih).
+  info "Sedang di $PR_BRANCH — pindah dulu ke main supaya $PR_BRANCH bisa diperbarui."
+  git switch main
+fi
+# '+' = timpa salinan lokal pr-N bila PR di-rebase/force-push. Branch ini hanya salinan uji.
+git fetch origin "+pull/$N/head:$PR_BRANCH" \
+  || gagal "PR #$N tidak bisa diambil. Cek nomornya dan akses deploy key."
+
+langkah "Pindah ke $PR_BRANCH"
+git switch "$PR_BRANCH"
+info "Commit PR: $(git log -1 --format='%h %s')"
+siapkan_versi
+
+trap 'printf "\n✖ Berhenti di tengah jalan. Untuk kembali ke produksi: scripts/balik-main\n" >&2' ERR
+
+langkah "Build image PR #$N (versi produksi masih berjalan selama build)"
+docker compose build "$SERVICE"
+
+langkah "Hentikan versi yang sedang berjalan (stop saja; container & volume tetap)"
+# Dihentikan sebelum backup supaya salinan data konsisten,
+# dan supaya tidak pernah ada dua instance berjalan bersamaan.
+docker compose stop "$SERVICE"
+
+langkah "Backup data"
+backup_data "pr$N" "sebelum uji PR #$N ($(git log -1 --format='%h %s')); sebelumnya ${ASAL_BRANCH:-(detached)} @ $ASAL_COMMIT"
+
+langkah "Jalankan PR #$N"
+tandai_mulai
+docker compose up -d --build "$SERVICE"
+trap - ERR
+
+tampilkan_aktif
+lihat_log 15
+
+printf '\n✔ PR #%s aktif. Silakan uji (cek di Telegram: /versi).\n' "$N"
+info "Selesai menguji  → scripts/balik-main   (atau ./rilis)"
+info "Backup pra-uji   → $BACKUP_DIR"

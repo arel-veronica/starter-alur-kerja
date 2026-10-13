@@ -1,0 +1,17 @@
+# Rahasia & data — JANGAN pernah di-commit
+.env
+data/
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
