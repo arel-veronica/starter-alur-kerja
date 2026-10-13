@@ -7,7 +7,7 @@ import pytest
 
 from app import statistik
 from app.config import ConfigError, load_settings
-from app.handlers import BANTUAN, DAFTAR_PERINTAH, boleh, teks_versi
+from app.handlers import BANTUAN, DAFTAR_PERINTAH, boleh, sapaan, teks_versi
 
 
 # --- pengaturan --------------------------------------------------------------
@@ -64,3 +64,18 @@ def test_versi_menjelaskan_status():
 def test_semua_perintah_ada_di_bantuan():
     for cmd in DAFTAR_PERINTAH:
         assert f"/{cmd.command}" in BANTUAN
+
+
+# --- /halo ---------------------------------------------------------------------------
+@pytest.mark.parametrize("jam,waktu", [
+    (4, "pagi"), (10, "pagi"), (11, "siang"), (14, "siang"),
+    (15, "sore"), (17, "sore"), (18, "malam"), (23, "malam"), (0, "malam"), (3, "malam"),
+])
+def test_sapaan_sesuai_jam(jam, waktu):
+    assert f"Selamat {waktu}, Arel!" in sapaan(jam, "Arel")
+
+
+def test_sapaan_tanpa_nama_dan_nama_aman():
+    assert sapaan(9, None).endswith("Selamat pagi!")
+    assert sapaan(9, "  ").endswith("Selamat pagi!")
+    assert "&lt;b&gt;" in sapaan(9, "<b>Arel</b>")  # nama tidak bisa menyisipkan HTML
